@@ -1,8 +1,7 @@
 # Multi-agent RL for ABMs
-RL applied to a selection of policy ABMs
-
 [[toc]]
-Code + lit repo for FY19 Methods RIR on "Multi-agent AI for Agent-based Models"
+
+RL applied to a selection of policy ABMs
 
 #### Architecting Environments
 - Architecture of [OpenAI's gym](./reading-materials/GymArchitecture[openAI-gym].pdf)
