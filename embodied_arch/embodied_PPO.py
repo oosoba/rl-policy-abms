@@ -37,6 +37,7 @@ _default_reports_ = ['Perf/Recent Reward',
 _every_ = 100
 _eps_ = 1.e-4
 _clip_default_ = 0.2
+_ppo_epochs_ = 10
 
 _g_thresh_ = 20.0  # gradient clip threshold
 _ent_decay_ = 5e-3
@@ -54,6 +55,7 @@ class EmbodiedAgentPPO(EmbodiedAgent):
     def __init__(self, name=agent_name,
                  env_=gym.make('CartPole-v0'),
                  alpha_p=5e-2, alpha_v=1e-1, clipping=_clip_default_,
+                 ppo_epochs=_ppo_epochs_,
                  latentDim=_zdim_,
                  space_size=(_s_size_, _a_size_),
                  sensorium=SensoriumNetworkTemplate,
@@ -71,6 +73,7 @@ class EmbodiedAgentPPO(EmbodiedAgent):
         self.optimizer_p = tf.train.AdamOptimizer(learning_rate=lrp)
         self.optimizer_v = tf.train.AdamOptimizer(learning_rate=lrv)
         self.clip_range = clipping
+        self.ppo_epochs = ppo_epochs
 
         self.report_labels = ['Perf/Recent Reward',
                               'Losses/Policy LL', 'Losses/Value Fxn', 'Losses/Entropy']
@@ -158,15 +161,25 @@ class EmbodiedAgentPPO(EmbodiedAgent):
                            }).ravel()  # cheating w/ old_pi = pi for now.
         Gt_TD = np.squeeze(calc_V_TD_target(rwds, vals,
                                             gamma=gamma, bootstrap_value=bootstrap_value))
+
+        # PPO inner loop
+        for _ in range(self.ppo_epochs):
+            feed_dict = {
+                self.states_St: np.vstack(states),
+                self.actions_At: np.vstack(actions),
+                self.returns_Gt: np.vstack(Gt_TD),
+                self.old_lnPi_t: np.vstack(old_pis)  # Use the fixed old log pis
+            }
+            # Train
+            sess.run([self.v_train, self.p_train], feed_dict=feed_dict)
+
+        # Generate performance statistics to periodically save
         feed_dict = {
             self.states_St: np.vstack(states),
             self.actions_At: np.vstack(actions),
             self.returns_Gt: np.vstack(Gt_TD),
             self.old_lnPi_t: np.vstack(old_pis)
         }
-        # Train
-        sess.run([self.v_train, self.p_train], feed_dict=feed_dict)
-        # Generate performance statistics to periodically save
         p_ll, v_l, p_ent = sess.run(
             [self.ploss, self.vloss, self.entropy],
             feed_dict=feed_dict
